@@ -36,7 +36,7 @@ export class ChartRenderer {
   }
 
   render(data) {
-    const { candles, swings, qmCandidates, lockedSignal, maxBars = 90 } = data;
+    const { candles, swings, qmCandidates, lockedSignal, sdZones, fvgZones, maxBars = 90 } = data;
     if (!candles || candles.length === 0) return;
     this._resize();
     const ctx = this.ctx;
@@ -84,6 +84,24 @@ export class ChartRenderer {
       ctx.beginPath(); ctx.moveTo(padLeft, yHigh); ctx.lineTo(this.width - padRight, yHigh); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(padLeft, yLow); ctx.lineTo(this.width - padRight, yLow); ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    // Optional layers (Section 5): Supply/Demand + FVG, deliberately faint and
+    // capped to the most recent handful within view so the chart never turns
+    // into indicator soup (Section 6).
+    const visibleSD = (sdZones || []).filter(z => z.index >= offset).slice(-6);
+    for (const z of visibleSD) {
+      const i = Math.max(0, z.index - offset);
+      const zx = x(i);
+      ctx.fillStyle = z.type === 'supply' ? 'rgba(208,103,89,0.10)' : 'rgba(79,184,166,0.10)';
+      ctx.fillRect(zx, y(z.high), this.width - padRight - zx, y(z.low) - y(z.high));
+    }
+    const visibleFVG = (fvgZones || []).filter(g => g.index >= offset).slice(-8);
+    for (const g of visibleFVG) {
+      const i = Math.max(0, g.index - offset);
+      const gx = x(i);
+      ctx.fillStyle = g.type === 'bullish' ? 'rgba(79,184,166,0.08)' : 'rgba(208,103,89,0.08)';
+      ctx.fillRect(gx, y(g.high), Math.max(4, barW * 2), y(g.low) - y(g.high));
     }
 
     // candles

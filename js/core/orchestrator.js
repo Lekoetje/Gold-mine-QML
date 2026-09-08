@@ -23,6 +23,7 @@ import { StorageEngine } from '../engines/storageEngine.js';
 import { SupplyDemandEngine } from '../engines/supplyDemandEngine.js';
 import { FVGEngine } from '../engines/fvgEngine.js';
 import { FibonacciEngine } from '../engines/fibonacciEngine.js';
+import { TradeManagementEngine } from '../engines/tradeManagementEngine.js';
 
 export class Orchestrator {
   constructor(config = CONFIG) {
@@ -43,6 +44,7 @@ export class Orchestrator {
     this.supplyDemandEngine = new SupplyDemandEngine(config);
     this.fvgEngine = new FVGEngine();
     this.fibonacciEngine = new FibonacciEngine(config);
+    this.tradeManagementEngine = new TradeManagementEngine();
 
     // Separate structure engines for each HTF, reused across runs so trend
     // derivation stays cheap and consistent with the primary-TF logic.
@@ -196,7 +198,7 @@ export class Orchestrator {
 
       // 19: lock if confirmed (mandatory conditions + score threshold; see signalStateEngine)
       if (!this.newsEngine.shouldBlockConfirmation(nowMs)) {
-        const locked = this.signalEngine.tryConfirmAndLock(qm, { ...snapshot, reacted: reaction.reacted }, this.config);
+        const locked = this.signalEngine.tryConfirmAndLock(qm, { ...snapshot, reacted: reaction.reacted, lockIndex: lastIndex }, this.config);
         if (locked?.state === 'LOCKED') {
           this.storageEngine.save(locked); // 21: store event
         }
@@ -204,6 +206,16 @@ export class Orchestrator {
     }
 
     this.qmCandidates = qmCandidates;
+
+    // 20: trade management — walk every open (LOCKED or later) signal forward
+    // through whatever candles exist past its lock point, checking for a
+    // stop-out, TP1 hit, and structural trailing (Section 17). Deterministic
+    // and idempotent — safe to re-run every time runFull() is called.
+    for (const signal of this.signalEngine.getActive()) {
+      if (!['LOCKED', 'TP1_HIT', 'RUNNER', 'TRAILING'].includes(signal.state)) continue;
+      const managed = this.tradeManagementEngine.manage(signal, candles, labeled, this.signalEngine);
+      if (managed && managed.state === 'CLOSED') this.storageEngine.save(managed);
+    }
 
     return {
       candles, atrSeries, swings: labeled, trend, sweeps, qmCandidates,

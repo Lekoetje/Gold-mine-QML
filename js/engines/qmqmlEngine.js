@@ -130,16 +130,25 @@ export class QMQMLEngine {
       return qm;
     }
 
-    // Touch detection
+    // Touch detection — only count a NEW test when price transitions into
+    // the zone from outside it. Without this, a few candles sitting inside
+    // a ranging zone would each increment `tests` and burn through
+    // maxTestsBeforeStale in a handful of bars, going STALE before the
+    // reaction/confirmation logic ever gets evaluated.
     const c = candles[currentIndex];
     const touched = c.low <= qm.qmlZone.high && c.high >= qm.qmlZone.low;
     if (touched && currentIndex > qm.bos.index) {
-      qm.tests += 1;
-      if (!qm.ftbDone) {
-        qm.ftbDone = true;
-        qm.firstTouchIndex = currentIndex;
+      if (!qm._inZone) {
+        qm.tests += 1;
+        if (!qm.ftbDone) {
+          qm.ftbDone = true;
+          qm.firstTouchIndex = currentIndex;
+        }
       }
+      qm._inZone = true;
       qm.state = 'ARMED'; // touched, now watching for reaction (Confirmation Engine decides CONFIRMED)
+    } else {
+      qm._inZone = false;
     }
 
     return qm;

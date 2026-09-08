@@ -1,39 +1,59 @@
 // ============================================================================
 // HISTORICAL STORAGE (Sections 61–62)
-// Browser-local persistence for now (localStorage). Swappable for a real
-// database via Connector 4 (Section 65) once a backend exists — the
-// interface (save/getAll/clear) stays the same either way.
+// Browser-local persistence via localStorage where available, falling back
+// to an in-memory Map otherwise (Node/test environments, or any context
+// where localStorage is unavailable/blocked). Swappable for a real database
+// via Connector 4 (Section 65) once a backend exists — the interface
+// (save/getAll/clear) stays the same either way.
 // ============================================================================
+
+const hasLocalStorage = typeof localStorage !== 'undefined';
 
 export class StorageEngine {
   constructor(config) {
     this.key = config.storage.localStorageKey;
     this.max = config.storage.maxStoredSignals;
+    this._memoryStore = hasLocalStorage ? null : new Map(); // id -> signal, used when localStorage is unavailable
   }
 
   save(signal) {
-    const all = this.getAll();
-    const idx = all.findIndex(s => s.id === signal.id);
-    if (idx >= 0) all[idx] = signal; else all.push(signal);
-    const trimmed = all.slice(-this.max);
-    try {
-      localStorage.setItem(this.key, JSON.stringify(trimmed));
-    } catch (e) {
-      console.warn('StorageEngine: persist failed', e);
+    if (hasLocalStorage) {
+      const all = this.getAll();
+      const idx = all.findIndex(s => s.id === signal.id);
+      if (idx >= 0) all[idx] = signal; else all.push(signal);
+      const trimmed = all.slice(-this.max);
+      try {
+        localStorage.setItem(this.key, JSON.stringify(trimmed));
+      } catch (e) {
+        console.warn('StorageEngine: persist failed', e);
+      }
+      return;
+    }
+    this._memoryStore.set(signal.id, signal);
+    if (this._memoryStore.size > this.max) {
+      const oldestKey = this._memoryStore.keys().next().value;
+      this._memoryStore.delete(oldestKey);
     }
   }
 
   getAll() {
-    try {
-      const raw = localStorage.getItem(this.key);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
+    if (hasLocalStorage) {
+      try {
+        const raw = localStorage.getItem(this.key);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
     }
+    return Array.from(this._memoryStore.values());
   }
 
   clear() {
-    try { localStorage.removeItem(this.key); } catch (e) { /* noop */ }
+    if (hasLocalStorage) {
+      try { localStorage.removeItem(this.key); } catch (e) { /* noop */ }
+      return;
+    }
+    this._memoryStore.clear();
   }
 
   /**

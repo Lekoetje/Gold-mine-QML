@@ -11,10 +11,12 @@ import { generateDemoCandles } from '../data/demoData.js';
 import { generateDemoNews } from '../data/demoNews.js';
 import { ChartRenderer } from './ui/chart.js';
 import { renderSignalCards } from './ui/signalCards.js';
+import { renderStatsPanel } from './ui/statsPanel.js';
 
 const orchestrator = new Orchestrator(CONFIG);
 const chart = new ChartRenderer(document.getElementById('chart-canvas'));
 const cardsContainer = document.getElementById('signal-cards');
+const statsContainer = document.getElementById('stats-panel');
 
 function boot() {
   const isDemo = CONFIG.dataMode === 'DEMO';
@@ -44,10 +46,13 @@ function refresh() {
     candles: result.candles,
     swings: result.swings,
     qmCandidates: result.qmCandidates,
+    sdZones: result.sdZones,
+    fvgZones: result.fvgZones,
     lockedSignal
   });
 
   renderSignalCards(cardsContainer, result);
+  renderStatsPanel(statsContainer, orchestrator.storageEngine.computeStatistics());
 }
 
 function updateHeader(result) {

@@ -16,7 +16,7 @@
 
 const MUTABLE_STATES = new Set(['SCANNING', 'DEVELOPING', 'ARMED']);
 const IMMUTABLE_CORE_FIELDS = [
-  'direction', 'entry', 'sl', 'tp1', 'qmHead', 'qmlZone', 'score', 'timestamp', 'timeframe'
+  'direction', 'entry', 'sl', 'tp1', 'qmHead', 'qmlZone', 'score', 'timestamp', 'timeframe', 'lockIndex'
 ];
 
 export class SignalStateEngine {
@@ -78,6 +78,7 @@ export class SignalStateEngine {
     record.rr = snapshot.rr;
     record.score = snapshot.score;
     record.scoreBreakdown = snapshot.breakdown;
+    record.lockIndex = snapshot.lockIndex ?? null; // candle index at lock time — used by TradeManagementEngine
     record.lockedAt = snapshot.nowMs;
     record.state = 'LOCKED';
 

@@ -38,10 +38,12 @@ Gold-mine-QML/
 │   │   ├── scoringEngine.js      # QM Alignment Score
 │   │   ├── riskEngine.js         # SL/TP1/R:R/position sizing
 │   │   ├── signalStateEngine.js  # state machine + LOCK/non-repaint guarantee
+│   │   ├── tradeManagementEngine.js # post-lock SL/TP1 tracking + structural trailing
 │   │   └── storageEngine.js      # persistence + backtest statistics
 │   ├── ui/
 │   │   ├── chart.js              # canvas candlestick chart
-│   │   └── signalCards.js        # WAIT / DEVELOPING / LOCKED cards
+│   │   ├── signalCards.js        # WAIT / DEVELOPING / LOCKED cards
+│   │   └── statsPanel.js         # backtest statistics panel
 │   └── main.js                   # app entry point
 ├── data/
 │   ├── demoData.js               # synthetic candle generator (DEMO mode)
@@ -52,7 +54,8 @@ Gold-mine-QML/
 ├── tests/
 │   ├── smoke.test.mjs             # end-to-end pipeline test
 │   ├── lockEngine.test.mjs        # focused non-repaint / immutability test
-│   └── confluenceEngines.test.mjs # resampling, HTF derivation, S/D, FVG, Fibonacci
+│   ├── confluenceEngines.test.mjs # resampling, HTF derivation, S/D, FVG, Fibonacci
+│   └── liveSimulation.test.mjs    # incremental live replay: lock -> trade mgmt -> closed trade
 └── docs/                         # (reserved for future architecture notes)
 ```
 
@@ -159,6 +162,7 @@ code required for demo mode.
 node tests/smoke.test.mjs               # full pipeline, sanity checks
 node tests/lockEngine.test.mjs          # non-repaint / immutability guarantee
 node tests/confluenceEngines.test.mjs   # resampling, HTF, S/D, FVG, Fibonacci
+node tests/liveSimulation.test.mjs      # incremental live-style replay: lock -> trade management -> closed trade
 ```
 
 These also run automatically on every push via GitHub Actions
@@ -184,28 +188,34 @@ Workers) since GitHub Pages can only host static content.
 - **No live market data or news feed connected** — everything currently
   runs on labeled demo data. This is the single biggest gap before this is
   a real trading-analysis tool.
-- **Fibonacci, Supply/Demand, and FVG zones aren't drawn on the chart yet**
-  — the detection engines are real and feed the score, but the optional
-  visual layers from Section 5 aren't rendered in `chart.js` yet (kept out
-  deliberately for now per Section 6's "don't overwhelm the chart" rule —
-  would need a toggle rather than always-on).
+- **Trade management is now wired into the live pipeline** — locked signals
+  are walked forward automatically (`tradeManagementEngine.js`) to detect
+  SL/TP1 hits and apply structural trailing (Section 17), closing trades
+  with a realized R-multiple. Verified end-to-end by
+  `tests/liveSimulation.test.mjs`, which incrementally grows the candle
+  history (true live-style replay) rather than one static batch run, since
+  a single full-history batch run mostly shows old setups as already
+  expired — correct behavior, but not useful for testing the lock path in
+  isolation.
+- **Backtest statistics now have real data to work with** — win rate,
+  profit factor, average R, max drawdown, and breakdowns by
+  session/score-band/volatility/divergence/sweep, shown in a new "Backtest
+  Statistics" panel in the UI. Still legitimately empty until enough trades
+  close.
+- **StorageEngine now works outside a browser** — it originally hard-required
+  `localStorage`, which meant statistics couldn't even be tested in Node;
+  it now falls back to an in-memory store when `localStorage` is
+  unavailable, keeping the same interface either way.
+- **Supply/Demand and FVG zones are now drawn on the chart** — kept
+  deliberately faint and capped to the last handful in view (Section 6).
+- **No authentication/multi-user support** — `localStorage` (browser) or the
+  in-memory fallback (Node) is per-session; fine for a single user, not for
+  a shared/team deployment.
 - **MPL (Section 23) is not implemented** — the spec allows the core system
   to work without it, so it was deferred.
 - **HTF resampling re-derives from scratch on every run** — fine at demo
-  scale (3000 M15 candles), but for a live feed running continuously this
-  should become incremental rather than a full re-resample each tick.
-- **Backtest statistics are real but there's no closed-trade data to feed
-  them** — `storageEngine.computeStatistics()` now computes win rate,
-  profit factor, average R, max drawdown, and breakdowns by session/score
-  band/volatility/divergence/sweep presence (Section 62), but everything
-  reads `null`/`0` until the Trade Management layer actually closes trades
-  with a realized R-multiple. Trade Management (partial close, runner,
-  structural trailing per Section 17) itself isn't wired into the live
-  pipeline yet — `signalStateEngine.js` has the methods
-  (`markTP1Hit`/`trailStop`/`markClosed`), but nothing calls them
-  automatically as price moves.
-- **No authentication/multi-user support** — `localStorage` is per-browser;
-  fine for a single user, not for a shared/team deployment.
+  scale, but for a live feed running continuously this should become
+  incremental rather than a full re-resample each tick.
 - **CI runs the test suite but doesn't lint or check the UI files** —
   `chart.js`, `signalCards.js`, and `main.js` are syntax-checked manually,
   not covered by the Node-based test suite since they depend on DOM APIs.
@@ -219,16 +229,11 @@ Workers) since GitHub Pages can only host static content.
 2. Deploy `backend/proxy-worker.example.js` (filled in for your chosen
    provider) so the frontend never touches a raw API key.
 3. Wire an economic-calendar API into `NewsEngine.loadEvents()`.
-4. Wire Trade Management into the live pipeline — call
-   `markTP1Hit`/`trailStop`/`markClosed` automatically as price moves past
-   TP1/SL, so `StorageEngine.computeStatistics()` has real closed-trade
-   data to report on.
-5. Add optional chart layers for the now-real S/D/FVG/Fibonacci zones,
-   behind a toggle so the chart stays uncluttered by default (Section 6).
-6. Move HTF resampling to incremental updates once running against a
+4. Move HTF resampling to incremental updates once running against a
    continuous live feed rather than a fixed historical batch.
-7. Add a GitHub Pages deploy workflow alongside the existing test workflow
-   (`.github/workflows/tests.yml`).
-8. Only after 1–7 are solid and backtested with real closed-trade history:
+5. Add a GitHub Pages deploy workflow alongside the existing test workflow
+   (`.github/workflows/tests.yml` — currently untracked in git pending a
+   token with `workflow` scope; see repo notes).
+6. Only after 1–5 are solid and backtested with real closed-trade history:
    revisit whether machine learning adds anything (Section 63) — not
    before.

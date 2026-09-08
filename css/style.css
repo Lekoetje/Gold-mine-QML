@@ -1,0 +1,289 @@
+/* ============================================================================
+   DESIGN TOKENS
+   Palette: warm near-black terminal, antique-gold accent (the metal itself),
+   muted teal for bullish / muted rust for bearish — legible against dark,
+   not cliché neon green/red. Fraunces (serif) carries the price/headline
+   personality — a nod to gold's classic, tactile value — while IBM Plex
+   Mono carries structured data (scores, levels, timestamps) for terminal
+   precision. Two families, clearly distinct roles.
+============================================================================= */
+:root {
+  --bg: #0B0D10;
+  --surface: #14171C;
+  --surface-2: #1B1F26;
+  --border: #262B33;
+  --text: #EDEAE3;
+  --text-muted: #8B9098;
+  --text-faint: #565C66;
+  --gold: #C6A15B;
+  --gold-dim: #8A7443;
+  --bull: #4FB8A6;
+  --bear: #D06759;
+  --warn: #D6A24A;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
+  --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
+
+  --radius: 3px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  padding-bottom: 48px;
+}
+
+a { color: var(--gold); }
+
+/* ---------- Header ---------- */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header .instrument {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text);
+}
+
+.app-header .price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.app-header .price {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.app-header .price.up { color: var(--bull); }
+.app-header .price.down { color: var(--bear); }
+
+.status-block {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.status-dot.live { background: var(--bull); box-shadow: 0 0 6px var(--bull); }
+.status-dot.demo { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.status-dot.offline { background: var(--bear); }
+
+.meta-row {
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.meta-row .tag {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ---------- Chart ---------- */
+.chart-wrap {
+  padding: 10px 8px 4px;
+}
+#chart-canvas {
+  width: 100%;
+  height: 320px;
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ---------- Sections ---------- */
+.section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px;
+}
+
+/* ---------- Signal cards ---------- */
+.signal-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.signal-card .top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.signal-direction {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+.signal-direction.buy { color: var(--bull); }
+.signal-direction.sell { color: var(--bear); }
+.signal-direction.wait { color: var(--text-muted); }
+
+.state-pill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.state-pill.locked { color: var(--gold); border-color: var(--gold-dim); }
+.state-pill.developing { color: var(--warn); border-color: var(--warn); }
+
+.checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.checklist span { color: var(--text-muted); }
+.checklist span.done { color: var(--bull); }
+
+.levels-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+}
+.levels-grid .level {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+.levels-grid .level .label {
+  font-size: 9.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.levels-grid .level .value {
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.score-value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--gold);
+}
+.score-class {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.wait-card p {
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 4px 0;
+}
+
+/* ---------- Config panel ---------- */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.config-item label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+.config-item input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+}
+
+button.primary {
+  background: var(--gold);
+  color: #14120C;
+  border: none;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+button.primary:active { opacity: 0.85; }
+
+.footer-note {
+  padding: 16px;
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+@media (min-width: 720px) {
+  #chart-canvas { height: 420px; }
+  .app-header .instrument { font-size: 26px; }
+  .app-header .price { font-size: 34px; }
+}

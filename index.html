@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Gold Mine QM/QML — XAU/USD Analysis</title>
+<meta name="description" content="XAU/USD Quasimodo (QM) and QML market structure analysis tool." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <div class="instrument">XAU/USD</div>
+    <div class="price-row">
+      <span id="price" class="price">—</span>
+    </div>
+  </div>
+  <div class="status-block">
+    <div><span id="mode-dot" class="status-dot demo"></span><span id="mode-label">DEMO DATA</span></div>
+    <div id="last-update">QM + QML Engine</div>
+  </div>
+</header>
+
+<div id="meta-row" class="meta-row"></div>
+
+<div class="chart-wrap">
+  <canvas id="chart-canvas"></canvas>
+</div>
+
+<section class="section">
+  <h2 class="section-title">Signal</h2>
+  <div id="signal-cards"></div>
+  <button id="refresh-btn" class="primary" style="margin-top:6px;">Re-run analysis</button>
+</section>
+
+<section class="section footer-note">
+  <strong style="color:var(--text-muted)">Decision-support tool, not a trading bot.</strong>
+  The QM Alignment Score reflects how closely a setup matches the configured
+  rule set — it is not a win-probability estimate and does not guarantee
+  any outcome. Currently running on synthetic demo data (see status above);
+  no live broker or news feed is connected. See <code>docs/README.md</code>
+  for architecture, data provider setup, and current limitations.
+</section>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { CONFIG } from './config.js';
+import { resampleCandles } from './resample.js';
 import { CandleEngine } from '../engines/candleEngine.js';
 import { SwingEngine } from '../engines/swingEngine.js';
 import { MarketStructureEngine } from '../engines/marketStructureEngine.js';
@@ -19,6 +20,9 @@ import { ScoringEngine } from '../engines/scoringEngine.js';
 import { RiskEngine } from '../engines/riskEngine.js';
 import { SignalStateEngine } from '../engines/signalStateEngine.js';
 import { StorageEngine } from '../engines/storageEngine.js';
+import { SupplyDemandEngine } from '../engines/supplyDemandEngine.js';
+import { FVGEngine } from '../engines/fvgEngine.js';
+import { FibonacciEngine } from '../engines/fibonacciEngine.js';
 
 export class Orchestrator {
   constructor(config = CONFIG) {
@@ -36,9 +40,37 @@ export class Orchestrator {
     this.riskEngine = new RiskEngine(config);
     this.signalEngine = new SignalStateEngine();
     this.storageEngine = new StorageEngine(config);
+    this.supplyDemandEngine = new SupplyDemandEngine(config);
+    this.fvgEngine = new FVGEngine();
+    this.fibonacciEngine = new FibonacciEngine(config);
+
+    // Separate structure engines for each HTF, reused across runs so trend
+    // derivation stays cheap and consistent with the primary-TF logic.
+    this.htfStructureEngines = { D1: new MarketStructureEngine(), H4: new MarketStructureEngine(), H1: new MarketStructureEngine() };
+    this.htfSwingEngines = { D1: new SwingEngine(config), H4: new SwingEngine(config), H1: new SwingEngine(config) };
+    this.htfVolatilityEngines = { D1: new VolatilityEngine(config), H4: new VolatilityEngine(config), H1: new VolatilityEngine(config) };
 
     this.qmCandidates = [];
     this.rsiSeries = [];
+  }
+
+  /**
+   * Derives real D1/H4/H1 trend states from the primary-timeframe candle
+   * series via resampling (Section 19) — replaces manually-fed HTF inputs.
+   * Falls back to 'NEUTRAL' for a timeframe if there isn't enough resampled
+   * history yet (e.g. early in a short demo run).
+   */
+  computeHTFTrends(primaryCandles) {
+    const trends = {};
+    for (const tf of ['D1', 'H4', 'H1']) {
+      const resampled = resampleCandles(primaryCandles, tf);
+      if (resampled.length < 20) { trends[tf] = 'NEUTRAL'; continue; }
+      const atr = this.htfVolatilityEngines[tf].update(resampled);
+      const swings = this.htfSwingEngines[tf].update(resampled, atr);
+      const { trend } = this.htfStructureEngines[tf].update(swings);
+      trends[tf] = trend === 'BULLISH' || trend === 'BEARISH' ? trend : 'NEUTRAL';
+    }
+    return trends;
   }
 
   loadHistoricalCandles(candles) {
@@ -54,7 +86,7 @@ export class Orchestrator {
    * candles. This mirrors the 21-step list in Section 40; steps 1–17 are
    * pattern/context detection, 18–21 are signal lifecycle management.
    */
-  runFull(htfTrends = { D1: 'NEUTRAL', H4: 'NEUTRAL', H1: 'NEUTRAL' }) {
+  runFull(htfTrendsOverride = null) {
     const candles = this.candleEngine.getClosedCandles();
     if (candles.length < 20) return this._emptyResult();
 
@@ -68,6 +100,14 @@ export class Orchestrator {
 
     // 4-5: QM / QML detection
     const qmCandidates = this.qmEngine.detect(candles, labeled, this.structureEngine, atrSeries);
+
+    // Real HTF trends derived from the same primary candles via resampling,
+    // unless the caller explicitly overrides them (e.g. tests).
+    const htfTrends = htfTrendsOverride || this.computeHTFTrends(candles);
+
+    // Supply/Demand + FVG zones, computed once per run
+    const sdZones = this.supplyDemandEngine.detect(candles, atrSeries);
+    const fvgZones = this.fvgEngine.detect(candles);
 
     // 13: RSI for optional divergence
     this.rsiSeries = this.confirmationEngine.computeRSI(candles, this.config.divergence.rsiPeriod);
@@ -95,10 +135,17 @@ export class Orchestrator {
       // 11: divergence
       const divergence = this.confirmationEngine.checkDivergence(qm, candles, this.rsiSeries);
 
-      // 12: (S/D + FVG confluence stub — Sections 20-21) left at neutral until a
-      // dedicated zone-detection pass is added; documented in README as a
-      // known limitation rather than silently fabricated.
-      const confluence = 0.3;
+      // 12: real S/D + FVG + Fibonacci confluence (Sections 20-22)
+      const atrAtHead = atrSeries[qm.head.index] || atrSeries[atrSeries.length - 1] || 0;
+      const sdHit = this.supplyDemandEngine.overlapsQML(sdZones, qm);
+      const fvgHit = this.fvgEngine.overlapsQML(fvgZones, qm);
+      const fibHit = this.fibonacciEngine.checkConfluence(qm, atrAtHead);
+      let confluence = 0;
+      if (sdHit) confluence += 0.45;
+      if (fvgHit) confluence += 0.35;
+      if (fibHit === 'goldenRatio') confluence += 0.2;
+      else if (fibHit === 'fifty') confluence += 0.1;
+      confluence = Math.min(1, confluence);
 
       // 14: volatility class
       const volatilityClass = this.volatilityEngine.classify(lastIndex);
@@ -140,7 +187,9 @@ export class Orchestrator {
         tp1: trade.tp1,
         rr: trade.rr,
         timeframe: this.config.timeframes.primary,
-        reasons: this._reasonList({ qm, sweep, htf, reaction, divergence }),
+        reasons: this._reasonList({ qm, sweep, htf, reaction, divergence, sdHit, fvgHit, fibHit }),
+        session: this.sessionEngine.classify(nowMs).join('+'),
+        volatilityAtEntry: volatilityClass,
         nowMs
       };
       this.signalEngine.upsertDeveloping(qm, snapshot);
@@ -158,6 +207,7 @@ export class Orchestrator {
 
     return {
       candles, atrSeries, swings: labeled, trend, sweeps, qmCandidates,
+      sdZones, fvgZones, htfTrends,
       signals: this.signalEngine.getAll(),
       activeSignals: this.signalEngine.getActive(),
       volatilityClass: this.volatilityEngine.classify(lastIndex),
@@ -174,20 +224,25 @@ export class Orchestrator {
     return near.sort((a, b) => order[b.grade] - order[a.grade])[0];
   }
 
-  _reasonList({ qm, sweep, htf, reaction, divergence }) {
+  _reasonList({ qm, sweep, htf, reaction, divergence, sdHit, fvgHit, fibHit }) {
     const reasons = ['QM'];
     if (sweep) reasons.push('Liquidity Sweep');
     reasons.push('BOS');
     if (qm.ftbDone) reasons.push('FTB');
     if (htf.score >= 0.66) reasons.push('HTF Alignment');
+    else if (htf.conflictDetected) reasons.push('HTF Conflict');
     if (reaction.reacted) reasons.push(`Reaction (${reaction.kind})`);
     if (divergence !== 'none') reasons.push(`Divergence (${divergence})`);
+    if (sdHit) reasons.push('Supply/Demand');
+    if (fvgHit) reasons.push('FVG');
+    if (fibHit !== 'none') reasons.push(`Fibonacci (${fibHit})`);
     return reasons;
   }
 
   _emptyResult() {
     return {
       candles: [], atrSeries: [], swings: [], trend: 'UNKNOWN', sweeps: [], qmCandidates: [],
+      sdZones: [], fvgZones: [], htfTrends: { D1: 'NEUTRAL', H4: 'NEUTRAL', H1: 'NEUTRAL' },
       signals: [], activeSignals: [], volatilityClass: 'UNKNOWN', session: ['off_hours'],
       newsRisk: { level: 'LOW', event: null }, nextNewsEvent: null
     };

@@ -21,7 +21,9 @@ function boot() {
   document.getElementById('mode-dot').className = `status-dot ${isDemo ? 'demo' : 'live'}`;
   document.getElementById('mode-label').textContent = isDemo ? 'DEMO DATA' : 'LIVE';
 
-  const candles = generateDemoCandles(400, 15 * 60_000, 2350);
+  // 3000 M15 candles (~31 days) gives enough history for D1/H4/H1 resampling
+  // to produce real HTF trends rather than falling back to NEUTRAL.
+  const candles = generateDemoCandles(3000, 15 * 60_000, 2350);
   orchestrator.loadHistoricalCandles(candles);
   orchestrator.loadNews(generateDemoNews());
 
@@ -30,9 +32,9 @@ function boot() {
 }
 
 function refresh() {
-  // Synthetic HTF context for the demo — in LIVE mode this comes from real D1/H4/H1 structure
-  const htfTrends = { D1: 'NEUTRAL', H4: 'NEUTRAL', H1: 'NEUTRAL' };
-  const result = orchestrator.runFull(htfTrends);
+  // HTF (D1/H4/H1) trends are now derived for real by resampling the primary
+  // candle series inside the orchestrator — no manual input needed.
+  const result = orchestrator.runFull();
 
   updateHeader(result);
   updateMetaRow(result);
@@ -61,11 +63,15 @@ function updateMetaRow(result) {
   const el = document.getElementById('meta-row');
   const sessionLabel = (result.session || []).join(' + ');
   const newsRisk = result.newsRisk?.level || 'LOW';
+  const htf = result.htfTrends || {};
   el.innerHTML = `
     <span class="tag">Session: ${sessionLabel}</span>
     <span class="tag">Volatility: ${result.volatilityClass}</span>
     <span class="tag">News Risk: ${newsRisk}</span>
-    <span class="tag">Structure: ${result.trend}</span>
+    <span class="tag">M15: ${result.trend}</span>
+    <span class="tag">H1: ${htf.H1 || '—'}</span>
+    <span class="tag">H4: ${htf.H4 || '—'}</span>
+    <span class="tag">D1: ${htf.D1 || '—'}</span>
   `;
 }
 

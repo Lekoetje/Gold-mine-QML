@@ -48,6 +48,8 @@ export class SignalStateEngine {
       timestamp: qm.head.timestamp,
       timeframe: snapshot.timeframe,
       reasons: snapshot.reasons ?? [],
+      session: snapshot.session ?? existing?.session ?? null,
+      volatilityAtEntry: snapshot.volatilityAtEntry ?? existing?.volatilityAtEntry ?? null,
       updatedAt: snapshot.nowMs
     };
     this.signals.set(qm.id, record);
@@ -120,11 +122,12 @@ export class SignalStateEngine {
     return r;
   }
 
-  markClosed(id, result, nowMs) {
+  markClosed(id, result, nowMs, resultR = null) {
     const r = this.signals.get(id);
     if (!r) return r;
     r.state = 'CLOSED';
     r.management.result = result; // 'WIN' | 'LOSS' | 'BE'
+    r.management.resultR = resultR; // realized result in R-multiples, for statistics (Section 62)
     r.management.closedAt = nowMs;
     return r;
   }

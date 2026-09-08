@@ -17,6 +17,8 @@ const orchestrator = new Orchestrator(CONFIG);
 const chart = new ChartRenderer(document.getElementById('chart-canvas'));
 const cardsContainer = document.getElementById('signal-cards');
 const statsContainer = document.getElementById('stats-panel');
+const positionOutput = document.getElementById('position-size-output');
+let lastResult = null;
 
 function boot() {
   const isDemo = CONFIG.dataMode === 'DEMO';
@@ -31,12 +33,15 @@ function boot() {
 
   refresh();
   document.getElementById('refresh-btn').addEventListener('click', refresh);
+  document.getElementById('account-balance').addEventListener('input', updatePositionSize);
+  document.getElementById('risk-percent').addEventListener('input', updatePositionSize);
 }
 
 function refresh() {
   // HTF (D1/H4/H1) trends are now derived for real by resampling the primary
   // candle series inside the orchestrator — no manual input needed.
   const result = orchestrator.runFull();
+  lastResult = result;
 
   updateHeader(result);
   updateMetaRow(result);
@@ -53,6 +58,41 @@ function refresh() {
 
   renderSignalCards(cardsContainer, result);
   renderStatsPanel(statsContainer, orchestrator.storageEngine.computeStatistics());
+  updatePositionSize();
+}
+
+/**
+ * Position Size Calculator (Section 50). Uses the current LOCKED signal's
+ * entry/SL if one exists; otherwise shows an empty state rather than
+ * guessing at levels. Clamps to the broker's min/max lot size and flags
+ * when the requested risk % can't be hit exactly at that clamp.
+ */
+function updatePositionSize() {
+  const balance = parseFloat(document.getElementById('account-balance').value) || 0;
+  const riskPercent = parseFloat(document.getElementById('risk-percent').value) || 0;
+  const lockedSignal = lastResult?.activeSignals?.find(s => s.state === 'LOCKED');
+
+  if (!lockedSignal || balance <= 0 || riskPercent <= 0) {
+    positionOutput.innerHTML = `<p class="empty">No locked signal to size against yet — position size will appear here once a setup confirms.</p>`;
+    return;
+  }
+
+  const sizing = orchestrator.riskEngine.positionSize(balance, riskPercent, lockedSignal.entry, lockedSignal.sl);
+
+  let warning = '';
+  if (sizing.belowMinLot) {
+    warning = `<div class="pos-warning">Requested risk is below the broker's minimum lot (${CONFIG.riskModel.minLotSize}) at this stop distance — actual risk will be higher than ${riskPercent}% of balance.</div>`;
+  } else if (sizing.clamped && sizing.lots === CONFIG.riskModel.maxLotSize) {
+    warning = `<div class="pos-warning">Requested size exceeds the broker's maximum lot (${CONFIG.riskModel.maxLotSize}) — position capped, actual risk is lower than requested.</div>`;
+  }
+
+  positionOutput.innerHTML = `
+    <div class="pos-grid">
+      <div class="pos-item"><div class="label">Lot Size</div><div class="value">${sizing.lots}</div></div>
+      <div class="pos-item"><div class="label">Risk Amount</div><div class="value">$${sizing.actualRiskAmount ?? sizing.riskAmount}</div></div>
+    </div>
+    ${warning}
+  `;
 }
 
 function updateHeader(result) {

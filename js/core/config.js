@@ -52,6 +52,9 @@ export const CONFIG = {
     preferredRR: 2.0,
     defaultRiskPercent: 1.0,
     contractSize: 100,         // ozt per standard lot — CONFIGURE to match your broker
+    minLotSize: 0.01,          // broker's minimum tradable lot size
+    maxLotSize: 1.0,           // broker's maximum tradable lot size (per position)
+    lotStep: 0.01,             // lot increment the broker allows
     maxDailyRiskPercent: 3.0,
     maxTradesPerDay: 5,
     maxSimultaneousSetups: 2

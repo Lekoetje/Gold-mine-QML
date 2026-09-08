@@ -37,6 +37,21 @@
 </section>
 
 <section class="section">
+  <h2 class="section-title">Position Size</h2>
+  <div class="config-grid">
+    <div class="config-item">
+      <label for="account-balance">Account Balance ($)</label>
+      <input id="account-balance" type="number" value="10000" min="0" step="100" />
+    </div>
+    <div class="config-item">
+      <label for="risk-percent">Risk %</label>
+      <input id="risk-percent" type="number" value="1" min="0.01" max="100" step="0.1" />
+    </div>
+  </div>
+  <div id="position-size-output" class="position-output"></div>
+</section>
+
+<section class="section">
   <h2 class="section-title">Backtest Statistics</h2>
   <div id="stats-panel"></div>
 </section>

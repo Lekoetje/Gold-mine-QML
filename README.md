@@ -99,7 +99,9 @@ connection that doesn't exist.
 | Live XAU/USD price + candles | Twelve Data, Polygon.io, OANDA, Finnhub | Check WebSocket support, CORS, and free-tier rate limits before committing |
 | Economic calendar | TradingEconomics API, Financial Modeling Prep, Finnhub calendar | Avoid scraping calendar sites directly — use a licensed API |
 | Backend/API proxy | Cloudflare Workers, Vercel/Netlify Functions | Free tier, no server to manage — fits a phone-based workflow. Template at `backend/proxy-worker.example.js` |
-| Storage | Start with `localStorage` (already implemented); move to Supabase/Cloudflare D1/Firebase when you need cross-device history | `storageEngine.js` already isolates this behind a small interface, so swapping the backend later doesn't touch the engines |
+| Storage | Start with `localStorage` (already implemented, with an in-memory fallback for non-browser environments); move to Supabase/Cloudflare D1/Firebase when you need cross-device history | `storageEngine.js` already isolates this behind a small interface, so swapping the backend later doesn't touch the engines |
+
+**Broker contract specs** (Section 50) are configured in `js/core/config.js` under `riskModel`: `contractSize` (ozt per lot), `minLotSize` (currently 0.01), `maxLotSize` (currently 1.0), and `lotStep`. Update these to match your actual broker before relying on the position-size numbers.
 
 ## 4. Required API keys
 
@@ -163,6 +165,7 @@ node tests/smoke.test.mjs               # full pipeline, sanity checks
 node tests/lockEngine.test.mjs          # non-repaint / immutability guarantee
 node tests/confluenceEngines.test.mjs   # resampling, HTF, S/D, FVG, Fibonacci
 node tests/liveSimulation.test.mjs      # incremental live-style replay: lock -> trade management -> closed trade
+node tests/riskEngine.test.mjs          # position sizing against broker lot constraints
 ```
 
 These also run automatically on every push via GitHub Actions
@@ -208,6 +211,12 @@ Workers) since GitHub Pages can only host static content.
   unavailable, keeping the same interface either way.
 - **Supply/Demand and FVG zones are now drawn on the chart** — kept
   deliberately faint and capped to the last handful in view (Section 6).
+- **Position sizing now respects real broker lot constraints** (Section 50)
+  — `riskEngine.positionSize()` clamps to a configurable min/max lot size
+  and lot step (currently 0.01 / 1.0, adjust in `config.js` to match your
+  broker), and flags when the requested risk % can't be hit exactly at
+  that clamp. Surfaced in a new "Position Size" panel in the UI that sizes
+  against whatever signal is currently LOCKED.
 - **No authentication/multi-user support** — `localStorage` (browser) or the
   in-memory fallback (Node) is per-session; fine for a single user, not for
   a shared/team deployment.

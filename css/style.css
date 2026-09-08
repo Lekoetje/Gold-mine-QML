@@ -332,6 +332,48 @@ button.primary:active { opacity: 0.85; }
   border-bottom: 1px dashed var(--border);
 }
 
+/* ---------- Position size output ---------- */
+.position-output {
+  margin-top: 10px;
+}
+.position-output .empty {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.position-output .pos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.position-output .pos-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+.position-output .pos-item .label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.position-output .pos-item .value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--gold);
+  margin-top: 2px;
+}
+.position-output .pos-warning {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+
 @media (min-width: 720px) {
   #chart-canvas { height: 420px; }
   .app-header .instrument { font-size: 26px; }

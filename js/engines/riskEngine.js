@@ -50,13 +50,42 @@ export class RiskEngine {
     return qm.direction === 'bearish' ? Math.max(...candidates) : Math.min(...candidates);
   }
 
+  /**
+   * Sizes a position against account risk %, then clamps to the broker's
+   * actual tradable range (Section 50: "must account for the broker's
+   * XAU/USD contract specifications"). If the raw risk-based size falls
+   * below the minimum lot, the trade either can't be taken at the
+   * configured risk % or must accept slightly more risk than requested —
+   * both are surfaced explicitly rather than silently rounding up.
+   */
   positionSize(accountBalance, riskPercent, entry, sl) {
     const riskAmount = accountBalance * (riskPercent / 100);
     const perOzRisk = Math.abs(entry - sl);
-    if (perOzRisk === 0) return { riskAmount, lots: 0 };
+    if (perOzRisk === 0) return { riskAmount, lots: 0, clamped: false, belowMinLot: false };
+
     const ounces = riskAmount / perOzRisk;
-    const lots = ounces / this.config.contractSize;
-    return { riskAmount, ounces: Math.round(ounces * 100) / 100, lots: Math.round(lots * 1000) / 1000 };
+    const rawLots = ounces / this.config.contractSize;
+
+    const step = this.config.lotStep;
+    const steppedLots = Math.round(rawLots / step) * step;
+    const clampedLots = Math.min(this.config.maxLotSize, Math.max(this.config.minLotSize, steppedLots));
+
+    const belowMinLot = rawLots > 0 && rawLots < this.config.minLotSize;
+    const clamped = Math.abs(clampedLots - rawLots) > step / 2;
+
+    // Actual risk incurred at the clamped lot size (may differ from the
+    // requested riskAmount if clamping was needed).
+    const actualRiskAmount = clampedLots * this.config.contractSize * perOzRisk;
+
+    return {
+      riskAmount: Math.round(riskAmount * 100) / 100,
+      ounces: Math.round(ounces * 100) / 100,
+      rawLots: Math.round(rawLots * 1000) / 1000,
+      lots: Math.round(clampedLots * 1000) / 1000,
+      actualRiskAmount: Math.round(actualRiskAmount * 100) / 100,
+      belowMinLot,   // true: the requested risk % is too small to reach even the min lot at this SL distance
+      clamped        // true: lot size was adjusted to fit broker min/max/step
+    };
   }
 
   /** Daily risk gate (Section 51). */
